@@ -5,7 +5,6 @@ output
 *.ipr
 *.iws
 out
-gradle
 
 Mekanism*.jar
 MDK.zip
