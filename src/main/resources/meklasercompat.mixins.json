@@ -1,18 +1,18 @@
 {
   "required": true,
-  "package": "dev.ryanhcode.meklasercompat.mixin",
+  "package": "dev.herobrine34187.meklasercompat.mixin",
   "compatibilityLevel": "JAVA_21",
   "minVersion": "0.8",
   "refmap": "meklasercompat.refmap.json",
   "mixins": [
-    "dev.herobrine34187.meklasercompat.mixin.LaserParticleMixin",
-    "dev.herobrine34187.meklasercompat.mixin.TileEntityBasicLaserMixin"
+    "LaserParticleMixin",
+    "TileEntityBasicLaserMixin"
   ],
   "client": [
-    "dev.herobrine34187.meklasercompat.mixin.LaserParticleMixin"
+    "LaserParticleMixin"
   ],
   "server": [
-    "dev.herobrine34187.meklasercompat.mixin.TileEntityBasicLaserMixin"
+    "TileEntityBasicLaserMixin"
   ],
   "injectors": {
     "defaultRequire": 1
