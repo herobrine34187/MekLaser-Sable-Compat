@@ -1,0 +1,88 @@
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev' version '2.0.107'
+}
+
+// Added 2025-06-17:16-40 - MekLaser-Sable-Compat mod: fixes Mekanism laser direction on Sable sub-levels
+// 添加 2025-06-17:16-40 - MekLaser-Sable-Compat模组：修复Mekanism激光在Sable子级上的方向问题
+
+defaultTasks 'build'
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of("${java_version}"))
+    }
+}
+
+neoForge {
+    version = neoforge_version
+
+    parchment {
+        // Use project properties directly to avoid circular evaluation
+        // 直接使用项目属性以避免循环求值
+        minecraftVersion = "1.21.1"
+        mappingsVersion = "2024.11.17"
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+
+    runs {
+        client {
+            client()
+        }
+        server {
+            server()
+        }
+    }
+}
+
+repositories {
+    maven {
+        url "https://cursemaven.com"
+    }
+
+    maven { url = "https://maven.ryanhcode.dev/releases" }
+
+    mavenLocal()
+    mavenCentral()
+}
+
+dependencies {
+    // Mixin (NeoForge already bundles Mixin at runtime, we only need it for compile)
+    // Mixin (NeoForge已内置Mixin，仅需编译时依赖)
+    compileOnly "net.fabricmc:sponge-mixin:0.15.2+mixin.0.8.7"
+
+    implementation "curse.maven:mekanism-268560:7904058"
+    implementation "curse.maven:sable-1312371:8263584"
+
+    api("dev.ryanhcode.sable-companion:sable-companion-common-1.21.1:${project.sable_companion_version}")
+}
+
+// Expand variables in mods.toml
+// 展开mods.toml中的变量
+tasks.named(sourceSets.main.processResourcesTaskName, ProcessResources) {
+    def expandProperties = [
+            'file'                         : ['jarVersion': mod_version],
+            'mod_id'                       : mod_id,
+            'mod_name'                     : mod_name,
+            'mod_author'                   : mod_author,
+            'mod_description'              : mod_description,
+            'mc_version'                   : minecraft_version_range,
+            'neoforge_version'             : neoforge_version_range,
+            'neoforge_loader_version_range': neoforge_loader_version_range,
+            'license'                      : license
+    ]
+    inputs.properties(expandProperties)
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand(expandProperties)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs.addAll(['-Xmaxerrs', '100000'])
+}

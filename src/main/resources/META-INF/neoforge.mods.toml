@@ -1,0 +1,57 @@
+# The name of the mod loader type to load - for regular mods in NeoForge it should be JAVA
+# 要加载的模组加载器类型 - 对于NeoForge常规模组应为JAVA
+modLoader = "javafml"
+loaderVersion = "${neoforge_loader_version_range}"
+
+
+# A URL to refer people to when problems occur with this mod
+# 当此模组出现问题时引导人们访问的URL
+# issueTrackerURL = ""
+
+# The license of the mod
+# 模组的许可证
+license = "${license}"
+
+# Mod entry
+# 模组条目
+[[mods]]
+modId = "${mod_id}"
+version = "${file.jarVersion}"
+displayName = "${mod_name}"
+authors = "${mod_author}"
+description = "${mod_description}"
+
+# Mixin configuration
+# Mixin配置
+[[mixins]]
+config = "meklasercompat.mixins.json"
+
+# Dependencies
+# 依赖项
+[[dependencies.meklasercompat]]
+modId = "minecraft"
+type = "required"
+versionRange = "${mc_version}"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.meklasercompat]]
+modId = "neoforge"
+type = "required"
+versionRange = "${neoforge_version}"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.meklasercompat]]
+modId = "mekanism"
+type = "required"
+versionRange = "[10.7.19,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.meklasercompat]]
+modId = "sable"
+type = "required"
+versionRange = "[2.0.3,)"
+ordering = "AFTER"
+side = "BOTH"
