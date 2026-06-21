@@ -71,6 +71,7 @@ tasks.named(sourceSets.main.processResourcesTaskName, ProcessResources) {
             'mod_name'                     : mod_name,
             'mod_author'                   : mod_author,
             'mod_description'              : mod_description,
+            'mod_version'                  : mod_version,
             'mc_version'                   : minecraft_version_range,
             'neoforge_version'             : neoforge_version_range,
             'neoforge_loader_version_range': neoforge_loader_version_range,
