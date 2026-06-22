@@ -5,7 +5,7 @@ output
 *.ipr
 *.iws
 out
-run
+/run
 
 Mekanism*.jar
 MDK.zip
