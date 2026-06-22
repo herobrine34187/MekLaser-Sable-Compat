@@ -34,10 +34,6 @@ public abstract class LaserParticleMixin {
     private ClientSubLevel meklas$subLevel;
 
     @Unique
-    private Vec3 meklas$localStart;
-    @Unique
-    private Vec3 meklas$localEnd;
-    @Unique
     private Vec3 meklas$worldPos;
 
     // ============================================================
@@ -56,9 +52,6 @@ public abstract class LaserParticleMixin {
             Direction direction, float energyScale,
             CallbackInfo ci) {
 
-        this.meklas$localStart = start;
-        this.meklas$localEnd = end;
-
         // Find the sub-level containing the laser origin
         ClientSubLevel found = Sable.HELPER.getContainingClient(start.x, start.z);
         if (found != null && !found.isRemoved()) {
@@ -66,16 +59,9 @@ public abstract class LaserParticleMixin {
         } else {
             this.meklas$subLevel = null;
         }
-    }
 
-    // ============================================================
-    // Injection 2: Replace stale position with current world position
-    // ============================================================
-
-    @Inject(method = "render", at = @At("HEAD"))
-    private void meklas$fixPositionBeforeRender(CallbackInfo ci) {
         if (this.meklas$subLevel != null && !this.meklas$subLevel.isRemoved()) {
-            Vec3 localPos = meklas$localEnd.add(meklas$localStart).scale(0.5);
+            Vec3 localPos = end.add(start).scale(0.5);
             // Compute current interpolated world position from the sub-level's pose
             meklas$worldPos = this.meklas$subLevel.renderPose().transformPosition(localPos);
             // Directly set Particle's x/y/z (shadowed from protected fields)
@@ -91,7 +77,10 @@ public abstract class LaserParticleMixin {
             )
     )
     private double meklas$fixNewX(double ticks, double xo, double x) {
-        return Mth.lerp(ticks, meklas$worldPos.x, x);
+        if (this.meklas$subLevel != null && !this.meklas$subLevel.isRemoved()) {
+            return Mth.lerp(ticks, meklas$worldPos.x, x);
+        }
+        return Mth.lerp(ticks, xo, x);
     }
 
     @Redirect(method = "render",
@@ -102,7 +91,10 @@ public abstract class LaserParticleMixin {
             )
     )
     private double meklas$fixNewY(double ticks, double yo, double y) {
-        return Mth.lerp(ticks, meklas$worldPos.y, y);
+        if (this.meklas$subLevel != null && !this.meklas$subLevel.isRemoved()) {
+            return Mth.lerp(ticks, meklas$worldPos.y, y);
+        }
+        return Mth.lerp(ticks, yo, y);
     }
 
     @Redirect(method = "render",
@@ -112,8 +104,11 @@ public abstract class LaserParticleMixin {
                     ordinal = 2
             )
     )
-    private double meklas$fixNewZ(double ticks, double xo, double z) {
-        return Mth.lerp(ticks, meklas$worldPos.z, z);
+    private double meklas$fixNewZ(double ticks, double zo, double z) {
+        if (this.meklas$subLevel != null && !this.meklas$subLevel.isRemoved()) {
+            return Mth.lerp(ticks, meklas$worldPos.z, z);
+        }
+        return Mth.lerp(ticks, zo, z);
     }
 
     // ============================================================
@@ -135,7 +130,6 @@ public abstract class LaserParticleMixin {
     private Quaternionf meklas$applySubLevelRotationToLaserDirection(Quaternionf quaternion) {
         if (this.meklas$subLevel != null && !this.meklas$subLevel.isRemoved()) {
             Quaterniondc subLevelOrientation = this.meklas$subLevel.renderPose().orientation();
-            // worldDirection = subLevelOrientation * localDirection
             Quaternionf corrected = new Quaternionf(subLevelOrientation);
             corrected.mul(quaternion);
             return corrected;
