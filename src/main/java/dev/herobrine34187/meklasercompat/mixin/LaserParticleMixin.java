@@ -34,6 +34,10 @@ public abstract class LaserParticleMixin {
     private ClientSubLevel meklas$subLevel;
 
     @Unique
+    private Vec3 meklas$localStart;
+    @Unique
+    private Vec3 meklas$localEnd;
+    @Unique
     private Vec3 meklas$worldPos;
 
     // ============================================================
@@ -60,8 +64,22 @@ public abstract class LaserParticleMixin {
             this.meklas$subLevel = null;
         }
 
+        this.meklas$localStart = start;
+        this.meklas$localEnd = end;
+
         if (this.meklas$subLevel != null && !this.meklas$subLevel.isRemoved()) {
-            Vec3 localPos = end.add(start).scale(0.5);
+            Vec3 localPos = meklas$localEnd.add(meklas$localStart).scale(0.5);
+            // Compute current interpolated world position from the sub-level's pose
+            meklas$worldPos = this.meklas$subLevel.renderPose().transformPosition(localPos);
+            // Directly set Particle's x/y/z (shadowed from protected fields)
+            this.setPos(meklas$worldPos.x, meklas$worldPos.y, meklas$worldPos.z);
+        }
+    }
+
+    @Inject(method = "render", at = @At("HEAD"))
+    private void meklas$fixPositionBeforeRender(CallbackInfo ci) {
+        if (this.meklas$subLevel != null && !this.meklas$subLevel.isRemoved()) {
+            Vec3 localPos = meklas$localEnd.add(meklas$localStart).scale(0.5);
             // Compute current interpolated world position from the sub-level's pose
             meklas$worldPos = this.meklas$subLevel.renderPose().transformPosition(localPos);
             // Directly set Particle's x/y/z (shadowed from protected fields)
