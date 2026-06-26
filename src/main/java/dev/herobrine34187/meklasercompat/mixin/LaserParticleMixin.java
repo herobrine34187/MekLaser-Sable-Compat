@@ -1,37 +1,25 @@
 package dev.herobrine34187.meklasercompat.mixin;
 
-import dev.ryanhcode.sable.Sable;
-import dev.ryanhcode.sable.sublevel.ClientSubLevel;
+import dev.ryanhcode.sable.api.particle.ParticleSubLevelKickable;
 import mekanism.client.particle.LaserParticle;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.Direction;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
-import org.joml.Quaterniondc;
-import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.Unique;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyVariable;
-import org.spongepowered.asm.mixin.injection.Redirect;
+import org.joml.Vector3f;
+import org.spongepowered.asm.mixin.*;
+import org.spongepowered.asm.mixin.injection.*;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * 修复激光束粒子效果表现异常
+ * 修复激光束粒子效果表现异常，会牺牲一部分性能
  */
 @Mixin(LaserParticle.class)
-public abstract class LaserParticleMixin {
+public abstract class LaserParticleMixin implements ParticleSubLevelKickable {
 
     @Shadow
     public abstract void setPos(double x, double y, double z);
-
-    /**
-     * Sub-level the laser resides on. Resolved at construction via laser origin.
-     */
-    @Unique
-    private ClientSubLevel meklas$subLevel;
 
     @Unique
     private Vec3 meklas$localStart;
@@ -40,15 +28,10 @@ public abstract class LaserParticleMixin {
     @Unique
     private Vec3 meklas$worldPos;
 
-    // ============================================================
-    // Injection 1: Resolve sub-level at construction time
-    // ============================================================
-
     /**
      * Finds the Sable sub-level containing the laser and stores the
      * LOCAL-space midpoint for later world-position computation.
-     * <p>
-     * 查找包含激光器的Sable子级，存储局部空间中点供后续计算。
+     * <p>查找包含激光器的Sable子级，存储局部空间中点供后续计算。</p>
      */
     @Inject(method = "<init>", at = @At("TAIL"))
     private void meklas$resolveSubLevelAtConstruction(
@@ -57,35 +40,51 @@ public abstract class LaserParticleMixin {
             CallbackInfo ci) {
 
         // Find the sub-level containing the laser origin
-        ClientSubLevel found = Sable.HELPER.getContainingClient(start.x, start.z);
-        if (found != null && !found.isRemoved()) {
-            this.meklas$subLevel = found;
-        } else {
-            this.meklas$subLevel = null;
-        }
 
         this.meklas$localStart = start;
         this.meklas$localEnd = end;
 
-        if (this.meklas$subLevel != null && !this.meklas$subLevel.isRemoved()) {
-            Vec3 localPos = meklas$localEnd.add(meklas$localStart).scale(0.5);
-            // Compute current interpolated world position from the sub-level's pose
-            meklas$worldPos = this.meklas$subLevel.renderPose().transformPosition(localPos);
-            // Directly set Particle's x/y/z (shadowed from protected fields)
-            this.setPos(meklas$worldPos.x, meklas$worldPos.y, meklas$worldPos.z);
-        }
+        // Compute current interpolated world position from the sub-level's pose
+        this.meklas$worldPos = this.meklas$localEnd.add(this.meklas$localStart).scale(0.5);
+        // Directly set Particle's x/y/z (shadowed from protected fields)
+        this.setPos(this.meklas$worldPos.x, this.meklas$worldPos.y, this.meklas$worldPos.z);
     }
 
+    /**
+     * 随游戏刻更新而更新位置
+     * */
     @Inject(method = "render", at = @At("HEAD"))
     private void meklas$fixPositionBeforeRender(CallbackInfo ci) {
-        if (this.meklas$subLevel != null && !this.meklas$subLevel.isRemoved()) {
-            Vec3 localPos = meklas$localEnd.add(meklas$localStart).scale(0.5);
-            // Compute current interpolated world position from the sub-level's pose
-            meklas$worldPos = this.meklas$subLevel.renderPose().transformPosition(localPos);
-            // Directly set Particle's x/y/z (shadowed from protected fields)
-            this.setPos(meklas$worldPos.x, meklas$worldPos.y, meklas$worldPos.z);
-        }
+        // Compute current interpolated world position from the sub-level's pose
+        meklas$worldPos = meklas$localEnd.add(meklas$localStart).scale(0.5);
+        // Directly set Particle's x/y/z (shadowed from protected fields)
+        this.setPos(meklas$worldPos.x, meklas$worldPos.y, meklas$worldPos.z);
     }
+
+    /**
+     * <p>修复激光束的指向问题。</p>
+     * <p>粒子效果的旋转原本为originalRotation参数应用后的旋转，但是该参数只有六种取值。此方法会将该参数修改为对应的连续取值。</p>
+     * <p>注意，为了保证可靠，此方法会牺牲掉部分性能与光束粒子的长轴自旋。</p>
+     * <p>由于未知原因，有时通过事件总线传递参数会传递出空参数，故弃用事件方式。</p>
+     * <p>部分算法由DeepSeek提供。</p>
+     * */
+    @ModifyVariable(method = "render", at = @At("STORE"), ordinal = 0)
+    private Quaternionf meklas$applySubLevelRotationToLaserDirection(Quaternionf originalRotation) {
+        Vec3 A = this.meklas$localStart;
+        Vec3 B = this.meklas$localEnd;
+
+        // 计算目标方向向量：to = B - A （注意不是 A - B）
+        Vec3 targetDir = B.subtract(A);
+        targetDir.normalize();
+
+        // 原方向向量
+        Quaternionf result = new Quaternionf().rotationTo(new Vector3f(0, 1, 0), targetDir.toVector3f());
+        return result.normalize();
+    }
+
+    /*
+    * 以下均为粒子运动过程的视觉补偿
+    * */
 
     @Redirect(method = "render",
             at = @At(
@@ -95,10 +94,7 @@ public abstract class LaserParticleMixin {
             )
     )
     private double meklas$fixNewX(double ticks, double xo, double x) {
-        if (this.meklas$subLevel != null && !this.meklas$subLevel.isRemoved()) {
-            return Mth.lerp(ticks, meklas$worldPos.x, x);
-        }
-        return Mth.lerp(ticks, xo, x);
+        return Mth.lerp(ticks, this.meklas$worldPos.x, x);
     }
 
     @Redirect(method = "render",
@@ -109,10 +105,7 @@ public abstract class LaserParticleMixin {
             )
     )
     private double meklas$fixNewY(double ticks, double yo, double y) {
-        if (this.meklas$subLevel != null && !this.meklas$subLevel.isRemoved()) {
-            return Mth.lerp(ticks, meklas$worldPos.y, y);
-        }
-        return Mth.lerp(ticks, yo, y);
+        return Mth.lerp(ticks, this.meklas$worldPos.y, y);
     }
 
     @Redirect(method = "render",
@@ -123,35 +116,18 @@ public abstract class LaserParticleMixin {
             )
     )
     private double meklas$fixNewZ(double ticks, double zo, double z) {
-        if (this.meklas$subLevel != null && !this.meklas$subLevel.isRemoved()) {
-            return Mth.lerp(ticks, meklas$worldPos.z, z);
-        }
-        return Mth.lerp(ticks, zo, z);
+        return Mth.lerp(ticks, this.meklas$worldPos.z, z);
     }
 
-    // ============================================================
-    // Injection 3: Apply sub-level rotation to laser direction
-    // ============================================================
+    /* 以下为性能修复 */
 
-    /**
-     * Multiplies the laser direction quaternion by the sub-level's orientation.
-     * <p>
-     * The laser block has a facing DIRECTION in local space. The sub-level has
-     * an ORIENTATION (quaternion). The world-space laser direction is:
-     * {@code worldDirection = subLevelOrientation * localDirection}
-     * <p>
-     * 将激光方向四元数乘以子级朝向。
-     * 激光方块有局部空间朝向(Direction)，子级有朝向(四元数)。
-     * 世界空间激光方向 = 子级朝向 * 局部方向。
-     */
-    @ModifyVariable(method = "render", at = @At("STORE"), ordinal = 0)
-    private Quaternionf meklas$applySubLevelRotationToLaserDirection(Quaternionf quaternion) {
-        if (this.meklas$subLevel != null && !this.meklas$subLevel.isRemoved()) {
-            Quaterniondc subLevelOrientation = this.meklas$subLevel.renderPose().orientation();
-            Quaternionf corrected = new Quaternionf(subLevelOrientation);
-            corrected.mul(quaternion);
-            return corrected;
-        }
-        return quaternion;
+    @Override
+    public boolean sable$shouldCollideWithTrackingSubLevel() {
+        return false;  // 激光是纯视觉粒子，不需要碰撞
+    }
+
+    @Override
+    public boolean sable$shouldCareAboutIntersectingSubLevels() {
+        return false;  // 也不需要关注与其他SubLevel的交互
     }
 }

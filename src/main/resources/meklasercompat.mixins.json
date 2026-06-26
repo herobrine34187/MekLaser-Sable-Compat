@@ -6,9 +6,11 @@
   "refmap": "meklasercompat.refmap.json",
   "mixins": [
     "LaserParticleMixin",
-    "TileEntityBasicLaserMixin"
+    "TileEntityBasicLaserMixin",
+    "LaserParticleFactoryMixin"
   ],
   "client": [
+    "LaserParticleFactoryMixin",
     "LaserParticleMixin"
   ],
   "server": [
